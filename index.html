@@ -1,36 +1,82 @@
 <!DOCTYPE html>
 <html>
+<head>
+<meta charset="UTF-8">
+<title>とうまセルフレジ</title>
+<style>
+body { font-family: sans-serif; text-align: center; }
+button { font-size: 20px; margin: 10px; padding: 10px; }
+#cart { margin-top: 20px; }
+</style>
+</head>
 <body>
 
 <h1>とうまセルフレジ</h1>
 
-<button onclick="addItem('お菓子',100)">お菓子（100円）</button>
-<button onclick="addItem('ジュース',150)">ジュース（150円）</button>
+<input type="text" id="barcode" placeholder="バーコード入力">
+<button onclick="scan()">スキャン</button>
 
-<h2>カート</h2>
-<ul id="cart"></ul>
+<div id="cart"></div>
 
-<h2 id="total"></h2>
+<h2 id="total">合計: 0円</h2>
 
 <button onclick="checkout()">お会計</button>
 
-<script>
-let cart = [];
+<br><br>
 
-function addItem(name, price){
-  cart.push({name, price});
-  let li = document.createElement("li");
-  li.textContent = name + " " + price + "円";
-  document.getElementById("cart").appendChild(li);
+<select id="soundSelect">
+  <option value="beep">ピッ音①</option>
+  <option value="beep2">ピッ音②</option>
+</select>
+
+<script>
+let products = {
+  "4901777300449": { name: "ポテチ", price: 150 },
+  "4902888254537": { name: "チョコ", price: 120 }
+};
+
+let cart = [];
+let total = 0;
+
+function playSound(type){
+  let audio;
+  if(type === "beep"){
+    audio = new Audio("https://www.soundjay.com/button/beep-07.wav");
+  } else {
+    audio = new Audio("https://www.soundjay.com/button/beep-10.wav");
+  }
+  audio.play();
+}
+
+function scan(){
+  let code = document.getElementById("barcode").value;
+  let product = products[code];
+
+  if(product){
+    cart.push(product);
+    total += product.price;
+
+    document.getElementById("cart").innerHTML += product.name + " - " + product.price + "円<br>";
+    document.getElementById("total").innerText = "合計: " + total + "円";
+
+    playSound(document.getElementById("soundSelect").value);
+  } else {
+    alert("商品が見つかりません");
+  }
+
+  document.getElementById("barcode").value = "";
 }
 
 function checkout(){
-  let total = 0;
-  for(let i=0; i<cart.length; i++){
-    total += cart[i].price;
-  }
-  document.getElementById("total").textContent =
-    "合計 " + total + "円";
+  alert("お会計 " + total + "円です");
+
+  let thanks = new Audio("https://www.soundjay.com/human/thank-you-01.mp3");
+  thanks.play();
+
+  cart = [];
+  total = 0;
+  document.getElementById("cart").innerHTML = "";
+  document.getElementById("total").innerText = "合計: 0円";
 }
 </script>
 
