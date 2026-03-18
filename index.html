@@ -2,34 +2,51 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>とうまセルフレジ</title>
+<title>とうまセルフレジ 完全版</title>
 
 <style>
 body { font-family: sans-serif; text-align: center; }
-button { font-size: 20px; margin: 10px; padding: 10px; }
+button { font-size: 18px; margin: 5px; padding: 10px; }
 #cart { margin-top: 20px; }
+#admin { display:none; border:1px solid black; padding:10px; margin-top:20px;}
 </style>
-
 </head>
 <body>
 
-<h1>とうまセルフレジ</h1>
+<h1>とうまセルフレジ 完全版</h1>
 
+<!-- スキャン -->
 <input type="text" id="barcode" placeholder="バーコード入力">
 <button onclick="scan()">スキャン</button>
 
-<div id="cart"></div>
+<!-- カメラ -->
+<br><br>
+<button onclick="startCamera()">📷カメラでスキャン（疑似）</button>
 
+<div id="cart"></div>
 <h2 id="total">合計: 0円</h2>
 
 <button onclick="checkout()">お会計</button>
 
 <br><br>
 
+<!-- 音選択 -->
 <select id="soundSelect">
   <option value="beep">ピッ音①</option>
   <option value="beep2">ピッ音②</option>
 </select>
+
+<!-- 管理者 -->
+<br><br>
+<button onclick="adminLogin()">🔒管理者モード</button>
+
+<div id="admin">
+  <h3>商品登録</h3>
+  名前：<input id="newName"><br>
+  値段：<input id="newPrice"><br>
+  バーコード：<input id="newCode"><br>
+  <button onclick="addProduct()">追加</button>
+</div>
 
 <script>
 let products = {
@@ -40,7 +57,9 @@ let products = {
 let cart = [];
 let total = 0;
 
-function playSound(type){
+// 音
+function playSound(){
+  let type = document.getElementById("soundSelect").value;
   let audio;
   if(type === "beep"){
     audio = new Audio("https://www.soundjay.com/button/beep-07.wav");
@@ -50,6 +69,7 @@ function playSound(type){
   audio.play();
 }
 
+// スキャン
 function scan(){
   let code = document.getElementById("barcode").value;
   let product = products[code];
@@ -61,16 +81,34 @@ function scan(){
     document.getElementById("cart").innerHTML += product.name + " - " + product.price + "円<br>";
     document.getElementById("total").innerText = "合計: " + total + "円";
 
-    playSound(document.getElementById("soundSelect").value);
+    playSound();
   } else {
-    alert("商品が見つかりません");
+    alert("商品なし！");
   }
 
   document.getElementById("barcode").value = "";
 }
 
+// カメラ（疑似）
+function startCamera(){
+  let code = prompt("カメラで読み取ったバーコードを入力");
+  if(code){
+    document.getElementById("barcode").value = code;
+    scan();
+  }
+}
+
+// お会計（レシート）
 function checkout(){
-  alert("お会計 " + total + "円です");
+  let receipt = "🧾 レシート\n\n";
+
+  cart.forEach(item=>{
+    receipt += item.name + " - " + item.price + "円\n";
+  });
+
+  receipt += "\n合計: " + total + "円";
+
+  alert(receipt);
 
   let thanks = new Audio("https://www.soundjay.com/human/thank-you-01.mp3");
   thanks.play();
@@ -79,6 +117,27 @@ function checkout(){
   total = 0;
   document.getElementById("cart").innerHTML = "";
   document.getElementById("total").innerText = "合計: 0円";
+}
+
+// 管理者ログイン
+function adminLogin(){
+  let pass = prompt("パスコード入力");
+  if(pass === "2312026"){
+    document.getElementById("admin").style.display = "block";
+  } else {
+    alert("違います");
+  }
+}
+
+// 商品追加
+function addProduct(){
+  let name = document.getElementById("newName").value;
+  let price = document.getElementById("newPrice").value;
+  let code = document.getElementById("newCode").value;
+
+  products[code] = { name: name, price: Number(price) };
+
+  alert("追加完了！");
 }
 </script>
 
