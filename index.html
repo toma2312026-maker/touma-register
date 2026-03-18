@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>とうまセルフレジ 完全版</title>
+<title>とうまセルフレジ 完全版（OCR対応）</title>
 
 <style>
 body { font-family: sans-serif; text-align: center; }
@@ -11,22 +11,23 @@ button { font-size: 18px; margin: 5px; padding: 10px; }
 #admin { display:none; border:1px solid black; padding:10px; margin-top:20px;}
 #scanner-container { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); }
 #scanner-view { width:100%; height:80%; }
+#ocr-canvas { display:none; }
 </style>
 
-<!-- QuaggaJS（バーコードライブラリ） -->
+<!-- バーコードライブラリ -->
 <script src="https://unpkg.com/quagga/dist/quagga.min.js"></script>
+<!-- OCRライブラリ -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
 </head>
 <body>
 
-<h1>とうまセルフレジ 完全版</h1>
+<h1>とうまセルフレジ 完全版（OCR対応）</h1>
 
-<!-- バーコード入力 -->
+<!-- レジ用スキャン -->
 <input type="text" id="barcode" placeholder="バーコード入力">
 <button onclick="scan()">スキャン</button>
-
-<!-- カメラ -->
 <br><br>
-<button onclick="startCamera()">📷カメラでスキャン</button>
+<button onclick="startCamera('cart')">📷カメラでスキャン（レジ用）</button>
 
 <!-- カメラ表示領域 -->
 <div id="scanner-container">
@@ -36,28 +37,26 @@ button { font-size: 18px; margin: 5px; padding: 10px; }
 
 <div id="cart"></div>
 <h2 id="total">合計: 0円</h2>
-
 <button onclick="checkout()">お会計</button>
 
 <br><br>
-
-<!-- 音選択 -->
 <select id="soundSelect">
   <option value="beep">ピッ音①</option>
   <option value="beep2">ピッ音②</option>
 </select>
 
-<!-- 管理者 -->
 <br><br>
 <button onclick="adminLogin()">🔒管理者モード</button>
 
 <div id="admin">
   <h3>商品登録</h3>
-  名前：<input id="newName"><br>
-  値段：<input id="newPrice"><br>
-  バーコード：<input id="newCode"><br>
+  名前：<input id="newName"><button onclick="ocrRead('name')">📷読み取り</button><br>
+  値段：<input id="newPrice"><button onclick="ocrRead('price')">📷読み取り</button><br>
+  バーコード：<input id="newCode"><button onclick="startCamera('admin')">📷バーコード読み取り</button><br>
   <button onclick="addProduct()">追加</button>
 </div>
+
+<canvas id="ocr-canvas"></canvas>
 
 <script>
 let products = {
@@ -67,6 +66,7 @@ let products = {
 
 let cart = [];
 let total = 0;
+let scannerTarget = null;
 
 // 音
 function playSound(){
@@ -80,7 +80,7 @@ function playSound(){
   audio.play();
 }
 
-// スキャン（手動入力もしくはカメラ読み取り）
+// レジ用スキャン
 function scan(){
   let code = document.getElementById("barcode").value;
   let product = products[code];
@@ -100,16 +100,13 @@ function scan(){
   document.getElementById("barcode").value = "";
 }
 
-// お会計（レシート）
+// お会計
 function checkout(){
   let receipt = "🧾 レシート\n\n";
-
   cart.forEach(item=>{
     receipt += item.name + " - " + item.price + "円\n";
   });
-
   receipt += "\n合計: " + total + "円";
-
   alert(receipt);
 
   let thanks = new Audio("https://www.soundjay.com/human/thank-you-01.mp3");
@@ -137,13 +134,18 @@ function addProduct(){
   let price = document.getElementById("newPrice").value;
   let code = document.getElementById("newCode").value;
 
-  products[code] = { name: name, price: Number(price) };
+  if(!name || !price || !code){
+    alert("全部入力してください！");
+    return;
+  }
 
+  products[code] = { name: name, price: Number(price) };
   alert("追加完了！");
 }
 
-// ーーーーー 本物のカメラスキャン機能 ーーーーー
-function startCamera(){
+// ーーーーー カメラスキャン機能 ーーーーー
+function startCamera(target){
+  scannerTarget = target; // cart or admin
   document.getElementById("scanner-container").style.display = "block";
 
   Quagga.init({
@@ -151,34 +153,59 @@ function startCamera(){
       name: "Live",
       type: "LiveStream",
       target: document.querySelector('#scanner-view'),
-      constraints: {
-        facingMode: "environment" // 背面カメラ
-      },
+      constraints: { facingMode: "environment" },
     },
-    decoder: {
-      readers: ["ean_reader"]
-    },
+    decoder: { readers: ["ean_reader"] },
   }, function(err) {
-    if (err) {
-      console.error(err);
-      alert("カメラが使えません");
-      stopScanner();
-      return;
-    }
+    if(err){ console.error(err); alert("カメラが使えません"); stopScanner(); return; }
     Quagga.start();
   });
 
-  Quagga.onDetected(function(result) {
+  Quagga.onDetected(function(result){
     let code = result.codeResult.code;
     stopScanner();
-    document.getElementById("barcode").value = code;
-    scan();
+    if(scannerTarget === 'cart'){
+      document.getElementById("barcode").value = code;
+      scan();
+    } else if(scannerTarget === 'admin'){
+      document.getElementById("newCode").value = code;
+    }
   });
 }
 
 function stopScanner(){
   Quagga.stop();
   document.getElementById("scanner-container").style.display = "none";
+}
+
+// ーーーーー OCR読み取り機能 ーーーーー
+function ocrRead(field){
+  let video = document.createElement("video");
+  navigator.mediaDevices.getUserMedia({ video:true }).then(stream=>{
+    video.srcObject = stream;
+    video.play();
+
+    let canvas = document.getElementById("ocr-canvas");
+    let ctx = canvas.getContext("2d");
+    canvas.width = 640; canvas.height = 480;
+
+    setTimeout(()=>{
+      ctx.drawImage(video,0,0,canvas.width,canvas.height);
+      let imageData = canvas.toDataURL("image/png");
+
+      Tesseract.recognize(imageData,'jpn',{ logger: m => console.log(m) })
+        .then(({ data: { text } })=>{
+          text = text.replace(/\n/g,'').trim();
+          if(field==='name'){
+            document.getElementById("newName").value = text;
+          } else if(field==='price'){
+            let num = text.replace(/\D/g,''); // 数字だけ抽出
+            document.getElementById("newPrice").value = num;
+          }
+          stream.getTracks().forEach(t=>t.stop());
+        });
+    },2000); // 2秒後に撮影
+  });
 }
 </script>
 
