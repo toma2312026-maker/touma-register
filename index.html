@@ -9,19 +9,30 @@ body { font-family: sans-serif; text-align: center; }
 button { font-size: 18px; margin: 5px; padding: 10px; }
 #cart { margin-top: 20px; }
 #admin { display:none; border:1px solid black; padding:10px; margin-top:20px;}
+#scanner-container { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); }
+#scanner-view { width:100%; height:80%; }
 </style>
+
+<!-- QuaggaJS（バーコードライブラリ） -->
+<script src="https://unpkg.com/quagga/dist/quagga.min.js"></script>
 </head>
 <body>
 
 <h1>とうまセルフレジ 完全版</h1>
 
-<!-- スキャン -->
+<!-- バーコード入力 -->
 <input type="text" id="barcode" placeholder="バーコード入力">
 <button onclick="scan()">スキャン</button>
 
 <!-- カメラ -->
 <br><br>
-<button onclick="startCamera()">📷カメラでスキャン（疑似）</button>
+<button onclick="startCamera()">📷カメラでスキャン</button>
+
+<!-- カメラ表示領域 -->
+<div id="scanner-container">
+  <button onclick="stopScanner()" style="font-size:20px; margin:10px;">✖ 閉じる</button>
+  <div id="scanner-view"></div>
+</div>
 
 <div id="cart"></div>
 <h2 id="total">合計: 0円</h2>
@@ -69,7 +80,7 @@ function playSound(){
   audio.play();
 }
 
-// スキャン
+// スキャン（手動入力もしくはカメラ読み取り）
 function scan(){
   let code = document.getElementById("barcode").value;
   let product = products[code];
@@ -87,15 +98,6 @@ function scan(){
   }
 
   document.getElementById("barcode").value = "";
-}
-
-// カメラ（疑似）
-function startCamera(){
-  let code = prompt("カメラで読み取ったバーコードを入力");
-  if(code){
-    document.getElementById("barcode").value = code;
-    scan();
-  }
 }
 
 // お会計（レシート）
@@ -138,6 +140,45 @@ function addProduct(){
   products[code] = { name: name, price: Number(price) };
 
   alert("追加完了！");
+}
+
+// ーーーーー 本物のカメラスキャン機能 ーーーーー
+function startCamera(){
+  document.getElementById("scanner-container").style.display = "block";
+
+  Quagga.init({
+    inputStream: {
+      name: "Live",
+      type: "LiveStream",
+      target: document.querySelector('#scanner-view'),
+      constraints: {
+        facingMode: "environment" // 背面カメラ
+      },
+    },
+    decoder: {
+      readers: ["ean_reader"]
+    },
+  }, function(err) {
+    if (err) {
+      console.error(err);
+      alert("カメラが使えません");
+      stopScanner();
+      return;
+    }
+    Quagga.start();
+  });
+
+  Quagga.onDetected(function(result) {
+    let code = result.codeResult.code;
+    stopScanner();
+    document.getElementById("barcode").value = code;
+    scan();
+  });
+}
+
+function stopScanner(){
+  Quagga.stop();
+  document.getElementById("scanner-container").style.display = "none";
 }
 </script>
 
